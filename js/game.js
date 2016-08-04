@@ -139,7 +139,7 @@ function collectStar(player, star) {
 }
 
 function addStar() {
-    var x = (dir)? rand()%200: rand()%200+600;
+    var x = (dir)? rand()%200+50: rand()%200+550;
     var nstar = stars.create(x, rand()%80, 'star');
     nstar.body.gravity.y = 500;
 }
