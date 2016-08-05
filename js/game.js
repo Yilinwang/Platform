@@ -22,14 +22,32 @@ var labelScore;
 
 //for add Ledge
 var dir;
+var initvol;
 var vol;
 
+//for game start
+var start;
+var space;
+var timer;
+var startText;
+var endText;
+
 function create() {
+    start = false;
     pre_intensity = 0;
     score = 0;
     dir = true;
-    vol = 40;
+    initvol = 40;
+    vol = initvol;
     labelScore = game.add.text(20, 20, "0", { font: "50px Arial", fill: "#ffffff" });
+    startText = game.add.text(0, 0, "Press SPACE to start!!", {font: "35px Arial", fill: "#ffffff", boundsAlignH: "center", boundsAlignV: "middle" });
+    startText.setShadow(3, 3, "rgba(0, 0, 0, 0.5)", 2);
+    startText.setTextBounds(0, 450, 800, 200);
+    endText = game.add.text(0, 0, "", {font: "35px Arial", fill: "#ffffff", boundsAlignH: "center", boundsAlignV: "middle" });
+    endText.setShadow(3, 3, "rgba(0, 0, 0, 0.5)", 2);
+    endText.setTextBounds(0, 200, 800, 200);
+    endText.visible = false;
+    space = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
 
     gs = new GaussSense();
 
@@ -41,35 +59,52 @@ function create() {
 
     platforms = game.add.group();
     platforms.enableBody = true;
+    initplatform();
 
-    var floor = platforms.create(0, game.world.height-64, 'ground');
-    floor.name = 'floor';
-    floor.scale.setTo(2, 2);
-    floor.body.immovable = true;
-    addLedge();
-    var timer = game.time.events.loop(3000, addLedge, this);
-
-    player = game.add.sprite(32, game.world.height - 150, 'dude');
+    player = game.add.sprite(32, game.world.height - 200, 'dude');
     game.physics.arcade.enable(player);
     player.body.bounce.y = 0.2;
-    player.body.gravity.y = 300;
+    //player.body.gravity.y = 300;
     player.body.collideWorldBounds = true;
     player.animations.add('left', [0, 1, 2, 3], 10, true);
     player.animations.add('right', [5, 6, 7, 8], 10, true);
 }
 
 function update() {
-    if(player.y > game.world.height-50) {
-        console.log('dead');
-    }
-    setVol();
-    setCollide();
-    control();
     game.world.bringToTop(labelScore);
+    game.world.bringToTop(startText);
+    game.world.bringToTop(endText);
+    if(start) {
+        if(player.y > game.world.height-50) {
+            console.log('dead');
+            restart();
+        }
+        setVol();
+        setCollide();
+        control();
+    }
+    else {
+        startText.visible = true;
+        if(space.isDown) {
+            player.body.gravity.y = 300;
+            start = true;
+            timer = game.time.events.loop(3000, addLedge, this);
+            startText.visible = false;
+            endText.visible = false;
+        }
+        platforms.forEach(function(p) { p.body.velocity.y = 0; });
+        player.body.gravity.y = 0;
+        player.body.velocity.y = 0;
+        player.body.velocity.x = 0;
+    }
 }
 
-function restart() {
-    console.log('bla');
+function initplatform() {
+    var floor = platforms.create(0, game.world.height-128, 'ground');
+    floor.name = 'floor';
+    floor.scale.setTo(2, 4);
+    floor.body.immovable = true;
+    addLedge();
 }
 
 function setCollide() {
@@ -150,6 +185,23 @@ function addLedge() {
     ledge.checkWorldBounds = true;
     ledge.outOfBoundsKill = true;
     vol++;
-    addStar();
+    if(start) {
+        addStar();
+    }
     dir = !dir;
+}
+
+function restart() {
+    vol = initvol;
+    start = false;
+    platforms.forEach(function(p) { p.kill(); });
+    stars.forEach(function(s) { s.kill(); });
+    player.x = 32;
+    player.y = game.world.height - 200;
+    initplatform();
+    game.time.events.remove(timer);
+    endText.visible = true;
+    endText.text = "Your final score: "+score;
+    score = 0;
+    labelScore.text = score;
 }
