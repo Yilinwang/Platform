@@ -1,9 +1,11 @@
-var game = new Phaser.Game(800, 600, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+var game = new Phaser.Game(800, 600, Phaser.AUTO, '', { preload: preload, create: create, update: update, render: render });
 
 function preload() {
     game.load.image('sky', 'img/sky.png');
     game.load.image('ground', 'img/platform.png');
     game.load.image('star', 'img/star.png');
+    game.load.image('small', 'img/smallplatform.png');
+    game.load.image('barrier', 'img/barrier.png');
     game.load.spritesheet('dude', 'img/dude.png', 32, 48);
 }
 
@@ -19,11 +21,16 @@ var stars;
 var player;
 var score;
 var labelScore;
+var hp;
+var labelHp;
+var pre_barrier;
+var pre_platform;
 
 //for add Ledge
 var dir;
 var initvol;
 var vol;
+var pre_x;
 
 //for game start
 var start;
@@ -31,6 +38,8 @@ var space;
 var timer;
 var startText;
 var endText;
+var initgrav;
+var psize;
 
 function create() {
     start = false;
@@ -38,8 +47,16 @@ function create() {
     score = 0;
     dir = true;
     initvol = 40;
+    initgrav = 800;
     vol = initvol;
-    labelScore = game.add.text(20, 20, "0", { font: "50px Arial", fill: "#ffffff" });
+    pre_x = 0;
+    psize = 0;
+    hp = 100;
+    pre_barrier = null;
+    pre_platform = null;
+    
+    labelScore = game.add.text(20, 20, "Score: 0", { font: "20px Arial", fill: "#ffffff" });
+    labelHp = game.add.text(20, 60, "HP: 100", { font: "20px Arial", fill: "#ff0000" });
     startText = game.add.text(0, 0, "Press SPACE to start!!", {font: "35px Arial", fill: "#ffffff", boundsAlignH: "center", boundsAlignV: "middle" });
     startText.setShadow(3, 3, "rgba(0, 0, 0, 0.5)", 2);
     startText.setTextBounds(0, 450, 800, 200);
@@ -71,31 +88,36 @@ function create() {
 }
 
 function update() {
-    game.world.bringToTop(labelScore);
-    game.world.bringToTop(startText);
-    game.world.bringToTop(endText);
-    if(start) {
-        if(player.y > game.world.height-50) {
-            console.log('dead');
-            restart();
-        }
-        setVol();
-        setCollide();
-        control();
+    if(hp <= 0) {
+        restart();
     }
     else {
-        startText.visible = true;
-        if(space.isDown) {
-            player.body.gravity.y = 300;
-            start = true;
-            timer = game.time.events.loop(3000, addLedge, this);
-            startText.visible = false;
-            endText.visible = false;
+        game.world.bringToTop(labelScore);
+        game.world.bringToTop(startText);
+        game.world.bringToTop(endText);
+        game.world.bringToTop(labelHp);
+        if(start) {
+            if(player.y > game.world.height-50) {
+                restart();
+            }
+            setVol();
+            setCollide();
+            control();
         }
-        platforms.forEach(function(p) { p.body.velocity.y = 0; });
-        player.body.gravity.y = 0;
-        player.body.velocity.y = 0;
-        player.body.velocity.x = 0;
+        else {
+            startText.visible = true;
+            if(space.isDown) {
+                player.body.gravity.y = initgrav;
+                start = true;
+                timer = game.time.events.loop(3000, addLedge, this);
+                startText.visible = false;
+                endText.visible = false;
+            }
+            platforms.forEach(function(p) { p.body.velocity.y = 0; });
+            player.body.gravity.y = 0;
+            player.body.velocity.y = 0;
+            player.body.velocity.x = 0;
+        }
     }
 }
 
@@ -104,17 +126,52 @@ function initplatform() {
     floor.name = 'floor';
     floor.scale.setTo(2, 4);
     floor.body.immovable = true;
-    addLedge();
+    addLedge(400);
+    addLedge(300);
+    addLedge(200);
+    addLedge(100);
+    addLedge(0);
+}
+
+function render() {
+    game.debug.body(player);
+    game.debug.body(platforms);
 }
 
 function setCollide() {
-    game.physics.arcade.collide(player, platforms);
+    //game.physics.arcade.collide(player, platforms);
+    game.physics.arcade.overlap(player, platforms, touch, null, this);
     game.physics.arcade.collide(stars, platforms);
     game.physics.arcade.overlap(player, stars, collectStar, null, this);
 }
 
+function touch(player, platform) {
+    if(platform.barrier && platform != pre_barrier) {
+        pre_barrier = platform;
+        hp -= 50;
+        labelHp.text = "HP: "+hp;
+    }
+    if(!platform.barrier && hp < 100 && platform != pre_platform) {
+        hp += 5;
+        labelHp.text = "HP: "+hp;
+    }
+    if(platform.id > score) {
+        score = platform.id;
+        labelScore.text = "Score: "+score;
+    }
+    if(player.body.touching.down && platform.body.touching.up) {
+        player.body.gravity.y = 0;
+        player.body.velocity.y = 0;
+    }
+    else {
+        player.body.gravity.y = initgrav;
+    }
+    pre_platform = platform;
+}
+
 function control() {
     if(gs.isConnected()) {
+        /*
         var north = gs.getNorthPoint();
         if(north != null) {
             if (north.x < 0.4 && north.x >0) {
@@ -130,7 +187,28 @@ function control() {
                 player.frame = 4;
             }
             if (pre_intensity - north.intensity > 8) {
-                player.body.velocity.y = -350;
+                player.body.velocity.y = -500;
+            }
+            pre_intensity = north.intensity;
+        }
+        */
+        var mid = gs.getBipolarMidpoint();
+        var north = gs.getNorthPoint();
+        if(mid != null) {
+            if(mid.angle < -(Math.PI/18)) {
+                player.body.velocity.x = -150;
+                player.animations.play('left');
+            }
+            else if (mid.angle > (Math.PI/18)) {
+                player.body.velocity.x = 150;
+                player.animations.play('right');
+            }
+            else {
+                player.animations.stop();
+                player.frame = 4;
+            }
+            if (pre_intensity - north.intensity > 8) {
+                player.body.velocity.y = -625;
             }
             pre_intensity = north.intensity;
         }
@@ -144,10 +222,10 @@ function setVol() {
     });
     if(player.body.touching.down) {
         player.body.gravity.y = 0;
-        player.body.velocity.y = 20;
+        player.body.velocity.y = vol;
     }
     else {
-        player.body.gravity.y = 300;
+        player.body.gravity.y = initgrav;
     }
     stars.forEach(function(s) {
         if(s != undefined) {
@@ -156,7 +234,7 @@ function setVol() {
                 s.body.velocity.y = 20;
             }
             else {
-                s.body.gravity.y = 300;
+                s.body.gravity.y = initgrav;
             }
         }
     });
@@ -176,32 +254,53 @@ function collectStar(player, star) {
 function addStar() {
     var x = (dir)? rand()%200+50: rand()%200+550;
     var nstar = stars.create(x, rand()%80, 'star');
-    nstar.body.gravity.y = 500;
+    nstar.body.gravity.y = initgrav;
 }
 
-function addLedge() {
-    var x = (dir)? -rand()%150: rand()%150+400;
-    var ledge = platforms.create(x, 100, 'ground');
+function addLedge(height) {
+    var x = rand()%550;
+    while(Math.abs(x-pre_x) < 150)
+        x = rand()%550;
+    pre_x = x;
+    var ledge;
+    if(rand()%5 === 0) {
+        ledge = platforms.create(x, height, 'barrier');
+        ledge.barrier = true;
+    }
+    else {
+        ledge = platforms.create(x, height, 'small');
+        ledge.barrier = false;
+    }
+    psize++;
+    ledge.id = psize;
+    ledge.body.setSize(250, 1, 0, 0);
     ledge.checkWorldBounds = true;
     ledge.outOfBoundsKill = true;
-    vol++;
+    if(score%3 === 0) vol++;
+    /*
     if(start) {
         addStar();
     }
+    */
     dir = !dir;
 }
 
 function restart() {
-    vol = initvol;
     start = false;
+    vol = initvol;
     platforms.forEach(function(p) { p.kill(); });
     stars.forEach(function(s) { s.kill(); });
     player.x = 32;
     player.y = game.world.height - 200;
-    initplatform();
     game.time.events.remove(timer);
     endText.visible = true;
     endText.text = "Your final score: "+score;
     score = 0;
-    labelScore.text = score;
+    labelScore.text = "Score: "+score;
+    pre_barrier = null;
+    pre_platform = null;
+    psize = 0;
+    hp = 100;
+    labelHp.text = "HP: "+hp;
+    initplatform();
 }
